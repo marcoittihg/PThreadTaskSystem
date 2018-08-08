@@ -18,12 +18,14 @@ PThreadPool(unsigned int numWorkerThreads);
 ### Execution calls
 Wait for a free worker thread and execute tht passed function func with args as arguments;
 at the end of the execution the worker thread will call the passed callback with its arguments before wait for an other function to be executed.
+[Thread-Safe]
 ```cpp
 void executeFunction(void (*func)(void*), void* args, void (*callback)(void*), void* callbackArgs)
 ```
   
   
 Wait for a free worker thread and execute tht passed function func with args as arguments; do not call a callback function.
+[Thread-Safe]
 ```cpp
 void executeFunction(void (*func)(void*), void* args)
 ```
