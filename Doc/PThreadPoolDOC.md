@@ -35,5 +35,18 @@ Return the number of handled Workers.
 ```cpp
 unsigned int getNumWorkerThreads()
 ```
-  
+
+## Examples
+
+Hello World
+
+```cpp
+void HelloWorld(void* args){
+	std::cout << "Hello World!" << std::endl;
+}
+
+PThreadPool pool;
+pool.executeFunction(func, nullptr);
+
+```
   
