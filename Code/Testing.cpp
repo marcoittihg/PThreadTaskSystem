@@ -7,6 +7,8 @@
 #include <boost/test/included/unit_test.hpp>
 
 #include "TaskSystem.h"
+#include "TaskSystemUtility.h"
+
 #include <pthread.h>
 #include <thread>
 
@@ -240,12 +242,11 @@ BOOST_AUTO_TEST_CASE(test_case_cyclic_exception_still_executable){
     TaskSystem::TaskSystem::TaskGraph taskGraph;
     TaskSystem::TaskSystem taskSystem;
 
+    TaskSystem::TaskSystem::Task task1([](void*){});
+    TaskSystem::TaskSystem::Task task2([](void*){});
+    TaskSystem::TaskSystem::Task task3([](void*){});
+
     try {
-
-        TaskSystem::TaskSystem::Task task1([](void*){});
-        TaskSystem::TaskSystem::Task task2([](void*){});
-        TaskSystem::TaskSystem::Task task3([](void*){});
-
         taskGraph.addTask(&task1);
         taskGraph.addTask(&task2);
         taskGraph.addTask(&task3);
@@ -267,34 +268,6 @@ BOOST_AUTO_TEST_CASE(test_case_cyclic_exception_still_executable){
         BOOST_TEST(false);
     }
 
-    BOOST_TEST(false);
-}
-
-/**
- * Test that when two tasks are under two graphs they can not be linked with a dependency
- * a DependencyTypeNotAllowedException is thrown
- */
-BOOST_AUTO_TEST_CASE(test_case_two_tasks_in_two_graphs) {
-
-    try {
-        TaskSystem::TaskSystem::TaskGraph taskGraph1, taskGraph2;
-        TaskSystem::TaskSystem taskSystem;
-
-        TaskSystem::TaskSystem::Task task1([](void*){});
-        TaskSystem::TaskSystem::Task task2([](void*){});
-
-        taskGraph1.addTask(&task1);
-        taskGraph2.addTask(&task2);
-
-        task1.addDependencyTo(&task2);
-
-    }
-    catch (TaskSystem::TaskSystem::DependencyTypeNotAllowedException &exe) {
-        return;
-    }
-    catch (std::exception &exe) {
-        BOOST_TEST(false);
-    }
     BOOST_TEST(false);
 }
 
@@ -372,10 +345,9 @@ BOOST_AUTO_TEST_CASE(test_case_a_task_cant_depend_by_itself){
     TaskSystem::TaskSystem::TaskGraph taskGraph;
     TaskSystem::TaskSystem taskSystem;
 
+    TaskSystem::TaskSystem::Task task1([](void*){});
+
     try {
-
-        TaskSystem::TaskSystem::Task task1([](void*){});
-
         taskGraph.addTask(&task1);
 
         task1.addDependencyTo(&task1);
@@ -402,29 +374,10 @@ BOOST_AUTO_TEST_CASE(test_case_a_task_cant_depend_by_itself){
  ****************************************************************/
 
 /**
- * Test that two graph can be linked and be executed
- */
-BOOST_AUTO_TEST_CASE(test_case_two_linked_graphs){
-
-    try {
-        TaskSystem::TaskSystem::TaskGraph taskGraph1,taskGraph2;
-        TaskSystem::TaskSystem taskSystem;
-
-        taskGraph1.addDependencyTo(&taskGraph2);
-
-        taskSystem.executeTaskGraph(taskGraph1);
-
-    }catch(std::exception exe){
-        BOOST_TEST(false);
-    }
-
-}
-/**
  * Test that two tasks can be inserted in two different graph,
  * the two graphs can be nested and executed in parallel
  */
-BOOST_AUTO_TEST_CASE(test_case_subgraph){
-
+BOOST_AUTO_TEST_CASE(test_case_two_parallel_two_graphs){
     class MutexTask : public TaskSystem::TaskSystem::Task{
     public:
         sem_t* sem;
@@ -470,7 +423,301 @@ BOOST_AUTO_TEST_CASE(test_case_subgraph){
         taskGraph1.addSubGraph(&taskGraph2);
 
         taskSystem.executeTaskGraph(taskGraph1);
+
     }catch(std::exception exe){
         BOOST_TEST(false);
     }
+}
+
+/**
+ * Test that two tasks can be executed in serial with the second
+ * linked in a subgraph of the parent graph
+ */
+BOOST_AUTO_TEST_CASE(test_case_two_serial_two_graphs){
+    class MyTask1 : public TaskSystem::TaskSystem::Task{
+    public:
+        int a;
+        MyTask1() {a = 0;}
+    } myTask1;
+
+    class MyTask2 : public TaskSystem::TaskSystem::Task{
+    public:
+        MyTask1* task1;
+
+        void setTask1(MyTask1* task1) {
+            this->task1 = task1;
+        }
+
+        MyTask2() {}
+    } myTask2;
+
+    myTask2.setTask1(&myTask1);
+
+    myTask1.setExecute([](void* arg){
+        MyTask1* context = (MyTask1*) arg;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+        context -> a++;
+    });
+    myTask2.setExecute([](void* arg){
+        MyTask2* context = (MyTask2*) arg;
+
+        BOOST_TEST(context->task1->a == 1);
+
+        context->task1->a++;
+    });
+
+    try {
+        TaskSystem::TaskSystem::TaskGraph taskGraph1, taskGraph2;
+        TaskSystem::TaskSystem taskSystem;
+
+        taskGraph1.addTask(&myTask1);
+        taskGraph2.addTask(&myTask2);
+
+        taskGraph1.addSubGraph(&taskGraph2);
+
+        myTask1.addDependencyTo(&taskGraph2);
+
+        taskSystem.executeTaskGraph(taskGraph1);
+
+    }catch(std::exception exe){
+        BOOST_TEST(false);
+    }
+
+    BOOST_TEST(myTask1.a == 2);
+
+}
+
+/**
+ * Same as prevous test but the first task is into the subgraph
+ * (different method call)
+ */
+BOOST_AUTO_TEST_CASE(test_case_two_serial_two_graphs_reverse){
+    class MyTask1 : public TaskSystem::TaskSystem::Task{
+    public:
+        int a;
+        MyTask1() {a = 0;}
+    } myTask1;
+
+    class MyTask2 : public TaskSystem::TaskSystem::Task{
+    public:
+        MyTask1* task1;
+
+        void setTask1(MyTask1* task1) {
+            this->task1 = task1;
+        }
+
+        MyTask2() {}
+    } myTask2;
+
+    myTask2.setTask1(&myTask1);
+
+    myTask1.setExecute([](void* arg){
+        MyTask1* context = (MyTask1*) arg;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+        context -> a++;
+    });
+    myTask2.setExecute([](void* arg){
+        MyTask2* context = (MyTask2*) arg;
+
+        BOOST_TEST(context->task1->a == 1);
+
+        context->task1->a++;
+    });
+
+    try {
+        TaskSystem::TaskSystem::TaskGraph taskGraph1, taskGraph2;
+        TaskSystem::TaskSystem taskSystem;
+
+        taskGraph1.addTask(&myTask1);
+        taskGraph2.addTask(&myTask2);
+
+        taskGraph2.addSubGraph(&taskGraph1);
+
+        taskGraph1.addDependencyTo(&myTask2);
+
+        taskSystem.executeTaskGraph(taskGraph2);
+    }catch(std::exception exe){
+        BOOST_TEST(false);
+    }
+
+    BOOST_TEST(myTask1.a == 2);
+}
+
+/**
+ * Test that when two tasks are under two graphs they can not be linked with a dependency
+ * a DependencyTypeNotAllowedException is thrown
+ */
+BOOST_AUTO_TEST_CASE(test_case_two_tasks_in_two_graphs) {
+
+    try {
+        TaskSystem::TaskSystem::TaskGraph taskGraph1, taskGraph2;
+        TaskSystem::TaskSystem taskSystem;
+
+        TaskSystem::TaskSystem::Task task1([](void*){});
+        TaskSystem::TaskSystem::Task task2([](void*){});
+
+        taskGraph1.addTask(&task1);
+        taskGraph2.addTask(&task2);
+
+        task1.addDependencyTo(&task2);
+
+    }
+    catch (TaskSystem::TaskSystem::DependencyTypeNotAllowedException &exe) {
+        return;
+    }
+    catch (std::exception &exe) {
+        BOOST_TEST(false);
+    }
+    BOOST_TEST(false);
+}
+
+/****************************************************************
+ *  GRAPH TO GRAPH TESTS
+ ****************************************************************/
+
+/**
+ * Test that two graph can be linked and  executed
+ */
+BOOST_AUTO_TEST_CASE(test_case_two_linked_graphs){
+
+    try {
+        TaskSystem::TaskSystem::TaskGraph taskGraph1,taskGraph2,taskGraph3;
+        TaskSystem::TaskSystem taskSystem;
+
+        taskGraph3.addSubGraph(&taskGraph1);
+        taskGraph3.addSubGraph(&taskGraph2);
+
+        taskGraph1.addDependencyTo(&taskGraph2);
+
+        taskSystem.executeTaskGraph(taskGraph3);
+
+    }catch(std::exception exe){
+        BOOST_TEST(false);
+    }
+}
+
+/**
+ * Test that a graph can not be its own subgraph
+ */
+BOOST_AUTO_TEST_CASE(test_case_no_self_subgraph){
+
+    try {
+        TaskSystem::TaskSystem::TaskGraph taskGraph1;
+        TaskSystem::TaskSystem taskSystem;
+
+        taskGraph1.addSubGraph(&taskGraph1);
+
+    }catch (TaskSystem::TaskSystem::TaskElementParentingException &exe) {
+        BOOST_TEST(true);
+        return;
+
+    }catch(std::exception exe){
+        BOOST_TEST(false);
+    }
+
+    BOOST_TEST(false);
+}
+
+/**
+ * Test that a graph can not be added twice
+ */
+BOOST_AUTO_TEST_CASE(test_case_subraph_can_not_be_added_twice){
+
+    try {
+        TaskSystem::TaskSystem::TaskGraph taskGraph1,taskGraph2;
+        TaskSystem::TaskSystem taskSystem;
+
+        taskGraph1.addSubGraph(&taskGraph2);
+        taskGraph1.addSubGraph(&taskGraph2);
+
+    }catch (TaskSystem::TaskSystem::TaskElementParentingException &exe) {
+        BOOST_TEST(true);
+        return;
+
+    }catch(std::exception exe){
+        BOOST_TEST(false);
+    }
+
+    BOOST_TEST(false);
+}
+
+/**
+ * Test that a cyclic dependency through graphs is detected;
+ * the parent task graph still executable
+ */
+BOOST_AUTO_TEST_CASE(test_case_no_cyclic_dependency_through_graph_dependencies){
+    TaskSystem::TaskSystem::TaskGraph taskGraph0, taskGraph1, taskGraph2, taskGraph3;
+    TaskSystem::TaskSystem taskSystem;
+
+    try {
+        taskGraph0.addSubGraph(&taskGraph1);
+        taskGraph0.addSubGraph(&taskGraph2);
+        taskGraph0.addSubGraph(&taskGraph3);
+
+        taskGraph1.addDependencyTo(&taskGraph2);
+        taskGraph2.addDependencyTo(&taskGraph3);
+        taskGraph3.addDependencyTo(&taskGraph1);
+
+    }catch (TaskSystem::TaskSystem::CyclicGraphException &exe) {
+        BOOST_TEST(true);
+
+        try{
+            taskSystem.executeTaskGraph(taskGraph0);
+        }catch(std::exception exe) {
+            BOOST_TEST(false);
+        }
+        return;
+
+    }catch(std::exception exe){
+        BOOST_TEST(false);
+    }
+
+    BOOST_TEST(false);
+}
+
+
+/****************************************************************
+ *  UTILITY TESTS
+ ****************************************************************/
+
+/**
+ * Test that the spliEqually function work with a number of workers multiple
+ * of the total work
+ */
+BOOST_AUTO_TEST_CASE(test_case_split_equally_work_multiple_of_workers){
+
+    std::vector<std::pair<unsigned long, unsigned long>> pairs;
+
+    TaskSystem::splitEqually(100,5,&pairs);
+
+    for (int i = 0; i < 5; ++i) {
+        unsigned long diff = pairs.at(i).second - pairs.at(i).first;
+
+        BOOST_TEST(diff == 100 / 5 - 1);
+    }
+}
+
+/**
+ * Test that the spliEqually function work with a number of workers that is not
+ * multiple of the total work
+ */
+BOOST_AUTO_TEST_CASE(test_case_split_equally_work_not_multiple_of_workers){
+
+    std::vector<std::pair<unsigned long, unsigned long>> pairs;
+
+    TaskSystem::splitEqually(100,6,&pairs);
+
+    for (int i = 0; i < 6; ++i) {
+        unsigned long diff = pairs.at(i).second - pairs.at(i).first;
+
+        if (i < 100 % 6)
+            BOOST_TEST(diff == 100 / 6);
+        else
+            BOOST_TEST(diff == 100 / 6 - 1);
+    }
+
 }

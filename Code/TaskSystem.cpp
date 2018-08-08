@@ -5,322 +5,407 @@
 #include <iostream>
 #include "TaskSystem.h"
 
-TaskSystem::TaskSystem::Task::Task() : Task(false){}
 
-TaskSystem::TaskSystem::Task::Task(bool dummy) : dummy(dummy) {
-    parentGraph = nullptr;
-    inQueue = false;
+namespace TaskSystem {
 
-    joinMutex = PTHREAD_MUTEX_INITIALIZER;
-
-    static unsigned int idIncrement = 0;
-
-    taskID = idIncrement++;
-}
-
-TaskSystem::TaskSystem::Task::~Task() {
-}
-
-bool TaskSystem::TaskSystem::Task::isDummy() {
-    return dummy;
-}
-
-TaskSystem::TaskSystem::TaskDependency* TaskSystem::TaskSystem::Task::addDependencyBetween(TaskSystem::TaskSystem::Task *taskStart,
-                                                        TaskSystem::TaskSystem::Task *taskEnd) {
-
-    TaskDependency* newDependency = new TaskDependency(taskStart, taskEnd);
-
-    taskStart->toTask.emplace_back(newDependency);
-    taskEnd->fromTask.emplace_back(newDependency);
-
-    return newDependency;
-}
-
-void TaskSystem::TaskSystem::Task::removeDependencyBetween(TaskSystem::TaskSystem::Task *taskStart,
-                                                           TaskSystem::TaskSystem::Task *taskEnd) {
-
-    std::vector<TaskDependency*>::iterator it = taskStart->toTask.begin();
-    while(it != taskStart->toTask.end()){
-        if((*it)->toTask == taskEnd){
-            it = taskStart->toTask.erase(it);
-        }else{
-            it++;
-        }
+    void TaskSystem::TaskElement::setParentGraph(TaskSystem::TaskGraph *taskGraph) {
+        parentGraph = taskGraph;
     }
 
-    it = taskEnd->fromTask.begin();
-    while(it != taskEnd->fromTask.end()){
-        if((*it)->fromTask == taskStart){
-            TaskDependency* dependency = *it;
-            it = taskEnd->fromTask.erase(it);
-
-            delete dependency;
-        }else{
-            it++;
-        }
+    TaskSystem::TaskGraph* TaskSystem::TaskElement::getParentGraph() {
+        return parentGraph;
     }
 
-}
+    TaskSystem::Task::Task() : Task(false) {}
 
-void TaskSystem::TaskSystem::Task::addDependencyTo(TaskSystem::TaskSystem::Task *task) noexcept(false) {
-    //check that the two tasks are under the same TaskGraph
-    if(getParentGraph() != task->getParentGraph())
-        throw DependencyTypeNotAllowedException();
+    TaskSystem::Task::Task(bool dummy) : dummy(dummy) {
+        parentGraph = nullptr;
+        inQueue = false;
 
-    Task::removeDependencyBetween(this, task);
-    Task::removeDependencyBetween(this, getParentGraph()->getEnd());
-    Task::removeDependencyBetween(getParentGraph()->getStart(), task);
+        dependencyMutex = PTHREAD_MUTEX_INITIALIZER;
 
-    TaskDependency* newDependency = Task::addDependencyBetween(this, task);
+        static unsigned int idIncrement = 0;
 
-    if(checkAcyclicDependency(*newDependency, this)){
-        Task::removeDependencyBetween(this, task);
-        throw CyclicGraphException();
-    }
-}
-
-void TaskSystem::TaskSystem::Task::addDependencyTo(TaskSystem::TaskSystem::TaskGraph *taskGraph) noexcept(false) {
-    if (taskGraph->getParentGraph() != nullptr && taskGraph->getParentGraph() != getParentGraph())
-        throw DependencyTypeNotAllowedException();
-
-    TaskGraph *oldParent = taskGraph->getParentGraph();
-
-    if (oldParent == nullptr) {
-        //Add the new task graph under the parent of this task
-        taskGraph->setParentGraph(getParentGraph());
-        getParentGraph()->addSubGraph(taskGraph);
-
-        Task::removeDependencyBetween(getParentGraph()->getStart(),taskGraph->getStart());
-    } else {
-        //Create dependencies
-        Task::removeDependencyBetween(this, taskGraph->getStart());
-
-        Task::removeDependencyBetween(getParentGraph()->getStart(), taskGraph->getStart());
+        taskID = idIncrement++;
     }
 
-    Task::removeDependencyBetween(this, getParentGraph()->getEnd());
-    TaskDependency* newDependency = Task::addDependencyBetween(this, taskGraph->getStart());
-
-    if(checkAcyclicDependency(*newDependency, this)){
-        Task::removeDependencyBetween(this, taskGraph->getStart());
-        throw CyclicGraphException();
-    }
-}
-
-bool TaskSystem::TaskSystem::Task::checkAcyclicDependency(TaskSystem::TaskSystem::TaskDependency dependency,
-                                                          TaskSystem::TaskSystem::Task* task) {
-    if(*task == *(dependency.toTask))
-        return true;
-
-    for (std::vector<TaskSystem::TaskSystem::TaskDependency*>::iterator it = (dependency.toTask)->toTask.begin();
-            it != (dependency.toTask)->toTask.end(); it++) {
-
-        if(checkAcyclicDependency(*(*it), task))
-            return true;
+    TaskSystem::Task::~Task() {
     }
 
-    return false;
-}
-
-bool TaskSystem::TaskSystem::Task::operator==(const TaskSystem::TaskSystem::Task &rhs) const {
-    return taskID == rhs.taskID;
-}
-
-bool TaskSystem::TaskSystem::Task::operator!=(const TaskSystem::TaskSystem::Task &rhs) const {
-    return !(rhs == *this);
-}
-
-void TaskSystem::TaskSystem::Task::startTask(PThreadPool* pool) {
-    if(dummy) return;
-
-    pthread_mutex_lock(&joinMutex);
-    pool->executeFunction(execute, this, &joinMutex);
-}
-
-void TaskSystem::TaskSystem::Task::join() {
-    pthread_mutex_lock(&joinMutex);
-    pthread_mutex_unlock(&joinMutex);
-}
-
-std::vector<TaskSystem::TaskSystem::TaskDependency *> TaskSystem::TaskSystem::Task::getToTask()  {
-    return toTask;
-}
-
-bool TaskSystem::TaskSystem::Task::isInQueue() {
-    return inQueue;
-}
-
-void TaskSystem::TaskSystem::Task::setInQueue(bool value) {
-    inQueue = value;
-}
-
-std::vector<TaskSystem::TaskSystem::TaskDependency *> TaskSystem::TaskSystem::Task::getFromTask() {
-    return fromTask;
-}
-
-void TaskSystem::TaskSystem::Task::setExecute(void (*execute)(void *)) {
-    Task::execute = execute;
-}
-
-TaskSystem::TaskSystem::Task::FuncPointer TaskSystem::TaskSystem::Task::getExecute() {
-    return execute;
-}
-
-TaskSystem::TaskSystem::Task::Task(void (*execute)(void *)) : Task(false){
-    this->execute = execute;
-}
-
-TaskSystem::TaskSystem::TaskGraph::TaskGraph() {
-    Task::addDependencyBetween(&start, &end);
-
-    parentGraph = nullptr;
-}
-
-void TaskSystem::TaskSystem::TaskGraph::addTask(TaskSystem::TaskSystem::Task* task) noexcept (false){
-    //check that the task is not already under a task graph
-    if(task->getParentGraph() != nullptr)
-        throw TaskElementParentingException();
-
-    if(tasks.empty())
-        Task::removeDependencyBetween(&start, &end);
-
-    Task::addDependencyBetween(&start, task);
-    Task::addDependencyBetween(task, &end);
-
-    task->setParentGraph (this);
-
-    tasks.push_back(task);
-}
-
-TaskSystem::TaskSystem::TaskGraph::~TaskGraph() {
-
-}
-
-void TaskSystem::TaskSystem::TaskGraph::addDependencyTo(TaskSystem::TaskSystem::TaskGraph *taskGraph) noexcept(false) {
-    if(getParentGraph() != taskGraph->getParentGraph())
-        throw DependencyTypeNotAllowedException();
-
-    if(getParentGraph() != nullptr){
-        Task::removeDependencyBetween(getParentGraph()->getStart(), taskGraph->getStart());
-        Task::removeDependencyBetween(getEnd(), getParentGraph()->getEnd());
-        Task::removeDependencyBetween(getEnd(), taskGraph->getStart());
+    bool TaskSystem::Task::isDummy() {
+        return dummy;
     }
 
-    TaskDependency* newDependency = Task::addDependencyBetween(getEnd(), taskGraph->getStart());
+    TaskSystem::TaskDependency *
+    TaskSystem::Task::addDependencyBetween(TaskSystem::Task *taskStart,
+                                                       TaskSystem::Task *taskEnd) {
 
-    if(Task::checkAcyclicDependency(*newDependency, getEnd())){
-        Task::removeDependencyBetween(getEnd(), taskGraph->getStart());
-        throw CyclicGraphException();
-    }
-}
+        TaskDependency *newDependency = new TaskDependency(taskStart, taskEnd);
 
-void TaskSystem::TaskSystem::TaskGraph::addDependencyTo(TaskSystem::TaskSystem::Task *task) noexcept(false) {
-    if(getParentGraph() != task->getParentGraph() && getParentGraph() != nullptr)
-        throw DependencyTypeNotAllowedException();
+        taskStart->toTask.emplace_back(newDependency);
+        taskEnd->fromTask.emplace_back(newDependency);
 
-    if(getParentGraph() == nullptr){
-        //Add the new task graph under the parent of this task
-        setParentGraph(task->getParentGraph());
-        getParentGraph()->addSubGraph(this);
-
-        Task::removeDependencyBetween(getParentGraph()->getStart(), task);
-        Task::removeDependencyBetween(getEnd(), getParentGraph()->getEnd());
-
-    }else{
-        Task::removeDependencyBetween(getParentGraph()->getStart(), task);
-        Task::removeDependencyBetween(getEnd(), getParentGraph()->getEnd());
-        Task::removeDependencyBetween(getEnd(), task);
+        return newDependency;
     }
 
-    TaskDependency* newDependency = Task::addDependencyBetween(getEnd(), task);
+    bool TaskSystem::Task::removeDependencyBetween(TaskSystem::Task *taskStart,
+                                                               TaskSystem::Task *taskEnd) {
+        bool found = false;
 
-    if(Task::checkAcyclicDependency(*newDependency, getEnd())){
-        Task::removeDependencyBetween(getEnd(), task);
-        throw CyclicGraphException();
-    }
-}
-
-TaskSystem::TaskSystem::TaskGraph::DummyStartEndTask *TaskSystem::TaskSystem::TaskGraph::getStart() {
-    return &start;
-}
-
-TaskSystem::TaskSystem::TaskGraph::DummyStartEndTask *TaskSystem::TaskSystem::TaskGraph::getEnd() {
-    return &end;
-}
-
-void TaskSystem::TaskSystem::TaskGraph::addSubGraph(TaskSystem::TaskSystem::TaskGraph *subGraph) {
-    if(subGraph->getParentGraph() != nullptr)
-        throw TaskElementParentingException();
-
-    if(subGraphs.empty())
-        Task::removeDependencyBetween(&start, &end);
-
-    subGraph->setParentGraph(this);
-
-    Task::addDependencyBetween(getStart(), subGraph->getStart());
-    Task::addDependencyBetween(subGraph->getEnd(), getEnd());
-
-    subGraphs.push_back(subGraph);
-}
-
-TaskSystem::TaskSystem::TaskDependency::TaskDependency(TaskSystem::TaskSystem::Task *fromTask,
-                                                       TaskSystem::TaskSystem::Task *toTask) : fromTask(
-        fromTask), toTask(toTask) {}
-
-void TaskSystem::TaskSystem::executeTaskGraph(TaskSystem::TaskGraph taskGraph) {
-    Task* start = taskGraph.getStart();
-    Task* end = taskGraph.getEnd();
-
-    std::queue<Task*> taskQueue;
-
-    std::vector<TaskDependency*> dependencyList = start->getToTask();
-
-    for (std::vector<TaskDependency*>::iterator it = dependencyList.begin(); it != dependencyList.end() ; it++) {
-        TaskDependency* dependency = *it;
-
-        Task* t= (dependency->toTask);
-        if(!(t->isInQueue())) {
-            taskQueue.push(t);
-            t->setInQueue(true);
-        }
-    }
-
-    while(!taskQueue.empty()){
-        Task* newTask = taskQueue.front();
-        taskQueue.pop();
-
-        //wait for previous tasks
-        dependencyList = newTask->getFromTask();
-        for(std::vector<TaskDependency *>::iterator it = dependencyList.begin();
-                it != dependencyList.end(); it++){
-            Task* task = (*it)->fromTask;
-            task->join();
-        }
-
-        //Execute
-        newTask->startTask(pThreadPool);
-
-        //Add next tasks
-        dependencyList = newTask->getToTask();
-        for (std::vector<TaskDependency *>::iterator it = dependencyList.begin();
-                it != dependencyList.end(); it++) {
-            Task *task = (*it)->toTask;
-
-            if (!((task)->isInQueue())) {
-                taskQueue.push(task);
-                task->setInQueue(true);
+        std::vector<TaskDependency *>::iterator it = taskStart->toTask.begin();
+        while (it != taskStart->toTask.end()) {
+            if ((*it)->toTask == taskEnd) {
+                it = taskStart->toTask.erase(it);
+                found = true;
+            } else {
+                it++;
             }
         }
 
-        //Free the task values
-        newTask->setInQueue(false);
+        it = taskEnd->fromTask.begin();
+        while (it != taskEnd->fromTask.end()) {
+            if ((*it)->fromTask == taskStart) {
+                TaskDependency *dependency = *it;
+                it = taskEnd->fromTask.erase(it);
+
+                delete dependency;
+            } else {
+                it++;
+            }
+        }
+
+        return found;
     }
-}
 
-TaskSystem::TaskSystem::TaskSystem() {
-    pThreadPool = new PThreadPool();
-}
+    void TaskSystem::Task::addDependencyTo(TaskSystem::Task *task) noexcept(false) {
+        //check that the two tasks are under the same TaskGraph
+        if (getParentGraph() != task->getParentGraph() || getParentGraph() == nullptr)
+            throw DependencyTypeNotAllowedException();
 
-TaskSystem::TaskSystem::~TaskSystem() {
-    delete pThreadPool;
+        Task::removeDependencyBetween(this, task);
+
+        bool foundTe = Task::removeDependencyBetween(this, getParentGraph()->getEnd());
+        bool foundSt = Task::removeDependencyBetween(getParentGraph()->getStart(), task);
+
+        TaskDependency *newDependency = Task::addDependencyBetween(this, task);
+
+        if (checkAcyclicDependency(*newDependency, this)) {
+            Task::removeDependencyBetween(this, task);
+
+            if (foundTe) Task::addDependencyBetween(this, getParentGraph()->getEnd());
+            if (foundSt) Task::addDependencyBetween(getParentGraph()->getStart(), task);
+
+            throw CyclicGraphException();
+        }
+    }
+
+    void TaskSystem::Task::addDependencyTo(TaskSystem::TaskGraph *taskGraph) noexcept(false) {
+        if (taskGraph->getParentGraph() != getParentGraph() || getParentGraph() == nullptr)
+            throw DependencyTypeNotAllowedException();
+
+        TaskGraph *oldParent = taskGraph->getParentGraph();
+
+        bool foundSg, foundTe;
+
+        //Create dependencies
+        Task::removeDependencyBetween(this, taskGraph->getStart());
+
+        foundSg = Task::removeDependencyBetween(getParentGraph()->getStart(), taskGraph->getStart());
+        foundTe = Task::removeDependencyBetween(this, getParentGraph()->getEnd());
+
+        TaskDependency *newDependency = Task::addDependencyBetween(this, taskGraph->getStart());
+
+        if (checkAcyclicDependency(*newDependency, this)) {
+            Task::removeDependencyBetween(this, taskGraph->getStart());
+
+            if (foundSg) Task::addDependencyBetween(getParentGraph()->getStart(), taskGraph->getStart());
+            if (foundTe) Task::addDependencyBetween(this, getParentGraph()->getEnd());
+
+            throw CyclicGraphException();
+        }
+    }
+
+    bool TaskSystem::Task::checkAcyclicDependency(TaskSystem::TaskDependency dependency,
+                                                              TaskSystem::Task *task) {
+        if (*task == *(dependency.toTask))
+            return true;
+
+        for (std::vector<TaskSystem::TaskDependency *>::iterator it = (dependency.toTask)->toTask.begin();
+             it != (dependency.toTask)->toTask.end(); it++) {
+
+            if (checkAcyclicDependency(*(*it), task))
+                return true;
+        }
+
+        return false;
+    }
+
+    bool TaskSystem::Task::operator==(const TaskSystem::Task &rhs) const {
+        return taskID == rhs.taskID;
+    }
+
+    bool TaskSystem::Task::operator!=(const TaskSystem::Task &rhs) const {
+        return !(rhs == *this);
+    }
+
+    void TaskSystem::Task::startTask(PThreadPool *pool, void (*callback)(void *), void *callbackArgs) {
+        if (dummy) {
+            callback(callbackArgs);
+        } else {
+            pool->executeFunction(execute, this, callback, callbackArgs);
+        }
+    }
+
+    std::vector<TaskSystem::TaskDependency *> TaskSystem::Task::getToTask() {
+        return toTask;
+    }
+
+    bool TaskSystem::Task::isInQueue() {
+        return inQueue;
+    }
+
+    void TaskSystem::Task::setInQueue(bool value) {
+        inQueue = value;
+    }
+
+    std::vector<TaskSystem::TaskDependency *> TaskSystem::Task::getFromTask() {
+        return fromTask;
+    }
+
+    void TaskSystem::Task::setExecute(void (*execute)(void *)) {
+        Task::execute = execute;
+    }
+
+    TaskSystem::Task::FuncPointer TaskSystem::Task::getExecute() {
+        return execute;
+    }
+
+    TaskSystem::Task::Task(void (*execute)(void *)) : Task(false) {
+        this->execute = execute;
+    }
+
+    bool TaskSystem::Task::freeDependency() {
+        pthread_mutex_lock(&dependencyMutex);
+
+        satisfiedDependencies++;
+        bool result = satisfiedDependencies == fromTask.size();
+
+        pthread_mutex_unlock(&dependencyMutex);
+
+        return result;
+    }
+
+    void TaskSystem::Task::resetSatDependencies() {
+        satisfiedDependencies = 0;
+    }
+
+    unsigned int TaskSystem::Task::getTaskID() {
+        return taskID;
+    }
+
+    TaskSystem::TaskGraph::TaskGraph() {
+        Task::addDependencyBetween(&start, &end);
+
+        start.setParentGraph(this);
+        end.setParentGraph(this);
+
+        tasks.push_back(&start);
+        tasks.push_back(&end);
+
+        parentGraph = nullptr;
+    }
+
+    void TaskSystem::TaskGraph::addTask(TaskSystem::Task *task) noexcept(false) {
+        //check that the task is not already under a task graph
+        if (task->getParentGraph() != nullptr)
+            throw TaskElementParentingException();
+
+        if (tasks.size() == 2)
+            Task::removeDependencyBetween(&start, &end);
+
+        Task::addDependencyBetween(&start, task);
+        Task::addDependencyBetween(task, &end);
+
+        task->setParentGraph(this);
+
+        tasks.push_back(task);
+    }
+
+    TaskSystem::TaskGraph::~TaskGraph() {
+
+    }
+
+    void
+    TaskSystem::TaskGraph::addDependencyTo(TaskSystem::TaskGraph *taskGraph) noexcept(false) {
+        if (getParentGraph() != taskGraph->getParentGraph() || getParentGraph() == nullptr)
+            throw DependencyTypeNotAllowedException();
+
+        bool foundSg, foundGe;
+
+        foundSg = Task::removeDependencyBetween(getParentGraph()->getStart(), taskGraph->getStart());
+        foundGe = Task::removeDependencyBetween(getEnd(), getParentGraph()->getEnd());
+
+        Task::removeDependencyBetween(getEnd(), taskGraph->getStart());
+
+        TaskDependency *newDependency = Task::addDependencyBetween(getEnd(), taskGraph->getStart());
+
+        if (Task::checkAcyclicDependency(*newDependency, getEnd())) {
+            Task::removeDependencyBetween(getEnd(), taskGraph->getStart());
+
+            if (foundSg) Task::addDependencyBetween(getParentGraph()->getStart(), taskGraph->getStart());
+            if (foundGe) Task::addDependencyBetween(getEnd(), getParentGraph()->getEnd());
+
+            throw CyclicGraphException();
+        }
+    }
+
+    void TaskSystem::TaskGraph::addDependencyTo(TaskSystem::Task *task) noexcept(false) {
+        if (getParentGraph() != task->getParentGraph() && getParentGraph() != nullptr)
+            throw DependencyTypeNotAllowedException();
+
+        bool foundSt, foundGe;
+
+        foundSt = Task::removeDependencyBetween(getParentGraph()->getStart(), task);
+        foundGe = Task::removeDependencyBetween(getEnd(), getParentGraph()->getEnd());
+
+        Task::removeDependencyBetween(getEnd(), task);
+
+        TaskDependency *newDependency = Task::addDependencyBetween(getEnd(), task);
+
+        if (Task::checkAcyclicDependency(*newDependency, getEnd())) {
+            Task::removeDependencyBetween(getEnd(), task);
+
+            if (foundSt) Task::addDependencyBetween(getParentGraph()->getStart(), task);
+            if (foundGe) Task::addDependencyBetween(getEnd(), getParentGraph()->getEnd());
+
+            throw CyclicGraphException();
+        }
+    }
+
+    TaskSystem::TaskGraph::DummyStartEndTask *TaskSystem::TaskGraph::getStart() {
+        return &start;
+    }
+
+    TaskSystem::TaskGraph::DummyStartEndTask *TaskSystem::TaskGraph::getEnd() {
+        return &end;
+    }
+
+    void TaskSystem::TaskGraph::addSubGraph(TaskSystem::TaskGraph *subGraph) {
+        if (subGraph->getParentGraph() != nullptr || subGraph->start.getTaskID() == start.getTaskID())
+            throw TaskElementParentingException();
+
+        if (subGraphs.empty())
+            Task::removeDependencyBetween(&start, &end);
+
+        subGraph->setParentGraph(this);
+
+        Task::addDependencyBetween(getStart(), subGraph->getStart());
+        Task::addDependencyBetween(subGraph->getEnd(), getEnd());
+
+        subGraphs.push_back(subGraph);
+    }
+
+    void TaskSystem::TaskGraph::resetDependencies() {
+        for (std::vector<Task *>::iterator it = tasks.begin(); it != tasks.end(); it++) {
+            (*it)->resetSatDependencies();
+        }
+
+        for (std::vector<TaskGraph *>::iterator it = subGraphs.begin(); it != subGraphs.end(); it++) {
+            (*it)->resetDependencies();
+        }
+    }
+
+    TaskSystem::TaskDependency::TaskDependency(TaskSystem::Task *fromTask,
+                                                           TaskSystem::Task *toTask) : fromTask(
+            fromTask), toTask(toTask) {}
+
+    void TaskSystem::executeTaskGraph(TaskSystem::TaskGraph taskGraph) {
+        Task *start = taskGraph.getStart();
+        Task *end = taskGraph.getEnd();
+
+        taskGraph.resetDependencies();
+
+        class ThreadSafeQueue {
+            std::queue<Task *> queue;
+
+            pthread_mutex_t mutex;
+            sem_t *sem;
+        public:
+            ThreadSafeQueue() {
+                mutex = PTHREAD_MUTEX_INITIALIZER;
+                sem = sem_open("QueueSem", O_CREAT, 0644, 0);
+                sem_unlink("QueueSem");
+            }
+
+            void safePut(Task *task) {
+                pthread_mutex_lock(&mutex);
+                queue.push(task);
+                sem_post(sem);
+                pthread_mutex_unlock(&mutex);
+            }
+
+            Task *safePop() {
+                sem_wait(sem);
+                pthread_mutex_lock(&mutex);
+                Task *task = queue.front();
+                queue.pop();
+                pthread_mutex_unlock(&mutex);
+
+                return task;
+            }
+        } taskQueue;
+
+        taskQueue.safePut(start);
+
+        struct CBArgs {
+            ThreadSafeQueue *queuePointer;
+            Task *taskPointer;
+
+            CBArgs(ThreadSafeQueue *queuePointer, Task *taskPointer) : queuePointer(queuePointer),
+                                                                       taskPointer(taskPointer) {}
+        };
+
+        void (*callback)(void *) = [](void *args) {
+            CBArgs *cbArgs = (CBArgs *) args;
+
+            Task *task = cbArgs->taskPointer;
+            ThreadSafeQueue *queue = cbArgs->queuePointer;
+
+            std::vector<TaskDependency *> dependencyList = task->getToTask();
+            for (std::vector<TaskDependency *>::iterator it = dependencyList.begin();
+                 it != dependencyList.end(); it++) {
+
+                Task *toTask = (*it)->toTask;
+
+                if (toTask->freeDependency()) {
+                    queue->safePut(toTask);
+                }
+            }
+
+            delete cbArgs;
+        };
+
+        while (true) {
+            Task *task = taskQueue.safePop();
+
+
+            if (task->getTaskID() == end->getTaskID())
+                break;
+
+            task->startTask(pThreadPool, callback, new CBArgs(&taskQueue, task));
+        }
+    }
+
+    TaskSystem::TaskSystem() {
+        pThreadPool = new PThreadPool();
+    }
+
+    TaskSystem::~TaskSystem() {
+        delete pThreadPool;
+    }
+
+    unsigned int TaskSystem::getNumWorkerThreads() {
+        return pThreadPool->getNumWorkerThreads();
+    }
+
 }

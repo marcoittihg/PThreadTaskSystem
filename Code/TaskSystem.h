@@ -44,13 +44,9 @@ namespace TaskSystem {
 
         public:
 
-            void setParentGraph(TaskGraph* taskGraph){
-                parentGraph = taskGraph;
-            }
+            void setParentGraph(TaskGraph* taskGraph);
 
-            TaskGraph* getParentGraph(){
-                return parentGraph;
-            }
+            TaskGraph* getParentGraph();
 
             /**
              * Add a dependency from Task to TaskGraph or from TaskGraph to TaskGraph
@@ -129,7 +125,12 @@ namespace TaskSystem {
             /**
              * Mutex used for the join call
              */
-            pthread_mutex_t joinMutex;
+            pthread_mutex_t dependencyMutex;
+
+            /**
+             * Number of already satisfied dependencies
+             */
+            unsigned int satisfiedDependencies;
 
             /**
              * True if the task is already into the execution queue
@@ -152,22 +153,18 @@ namespace TaskSystem {
             void setExecute(void (*execute)(void*));
 
             typedef void(*FuncPointer)(void*);
+
             FuncPointer getExecute();
 
             /**
              * Right call to start the execution of the task
              */
-            void startTask(PThreadPool* pool);
+            void startTask(PThreadPool* pool,void (*callback)(void*),void* callbackArgs);
 
             /**
              * @return True if the task is a dummy task
              */
             bool isDummy();
-
-            /**
-             * Wait for the end of the execution of the task
-             */
-            void join();
 
             /**
              * @return True if the task is already into a execution queue
@@ -180,9 +177,22 @@ namespace TaskSystem {
              */
             void setInQueue(bool value);
 
+            /**
+             * Free one dependency of the task
+             * @return True if all the dependencies of the task are free
+             */
+            bool freeDependency();
+
+            /**
+             * Reset the number of satisfied dependencies
+             */
+            void resetSatDependencies();
+
             std::vector<TaskDependency *> getToTask();
 
             std::vector<TaskDependency *> getFromTask();
+
+            unsigned int getTaskID();
 
             /**
              * Add a dependency between two tasks
@@ -195,8 +205,9 @@ namespace TaskSystem {
              * Remove all the direct dependencies between two tasks if any
              * @param taskStart Start task of the dependency
              * @param taskEnd End task of the dependency
+             * @return True if at least one dependency has been removed
              */
-            static void removeDependencyBetween(Task* taskStart, Task* taskEnd);
+            static bool removeDependencyBetween(Task* taskStart, Task* taskEnd);
 
             /**
              * Check if through the given dependency is possible to reach the given task
@@ -218,7 +229,8 @@ namespace TaskSystem {
 
             class DummyStartEndTask : public Task{
             public:
-                DummyStartEndTask() : Task(true){}
+                DummyStartEndTask() : Task(true){
+                }
 
             private:
             };
@@ -252,6 +264,11 @@ namespace TaskSystem {
             void addDependencyTo(TaskGraph* taskGraph) noexcept(false) override;
             void addDependencyTo(Task* task) noexcept(false) override;
 
+            /**
+             * Reset all the dependencies to unsatisfied
+             */
+            void resetDependencies();
+
             DummyStartEndTask* getStart();
 
             DummyStartEndTask* getEnd();
@@ -268,6 +285,8 @@ namespace TaskSystem {
          * @param taskGraph The graph to be executed
          */
         void executeTaskGraph(TaskGraph taskGraph);
+
+        unsigned int getNumWorkerThreads();
     };
 }
 

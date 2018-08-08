@@ -4,18 +4,6 @@
 
 #include "PThreadPool.h"
 
-void PThreadPool::WorkerPThread::executeFunction(void (*func)(void *), void *args, pthread_mutex_t *mutex) {
-    this->func = func;
-    this->funcArgs = args;
-    this->mutex = mutex;
-
-    sem_post(newFunctionSemaphore);
-}
-
-void PThreadPool::WorkerPThread::executeFunction(void (*func)(void*),void* args) {
-    executeFunction(func, args, nullptr);
-}
-
 void *PThreadPool::WorkerPThread::pthreadWorkerLoop(void* args) {
     WorkerPThread* worker = (WorkerPThread*) args;
 
@@ -26,8 +14,9 @@ void *PThreadPool::WorkerPThread::pthreadWorkerLoop(void* args) {
         //Execute the new function
         worker->func(worker->funcArgs);
 
-        if(worker->mutex != nullptr)
-            pthread_mutex_unlock(worker->mutex);
+        //Call the callback if specified
+        if(worker->callback != nullptr)
+            worker->callback(worker->callbackArgs);
 
         //Set this pthread as ready
         worker->ownerPool->pushReadyQueue(worker);
@@ -50,24 +39,6 @@ PThreadPool::WorkerPThread::~WorkerPThread(){
     sem_close(newFunctionSemaphore);
 }
 
-PThreadPool::WorkerPThread* PThreadPool::popReadyQueue() {
-    pthread_mutex_lock(&queueMutex);
-
-    WorkerPThread* worker = readyWorkers.front();
-    readyWorkers.pop();
-
-    pthread_mutex_unlock(&queueMutex);
-
-    return worker;
-}
-
-void PThreadPool::pushReadyQueue(PThreadPool::WorkerPThread* worker) {
-    pthread_mutex_lock(&queueMutex);
-
-    readyWorkers.push(worker);
-
-    pthread_mutex_unlock(&queueMutex);
-}
 
 PThreadPool::PThreadPool() : PThreadPool(std::thread::hardware_concurrency()){}
 
@@ -88,18 +59,6 @@ PThreadPool::PThreadPool( unsigned int numWorkerThreads ) : numWorkerThreads(num
 }
 
 
-void PThreadPool::executeFunction(void (*func)(void *), void *args, pthread_mutex_t *mutex) {
-    sem_wait(poolSemaphore);
-
-    WorkerPThread* worker = popReadyQueue();
-
-    worker->executeFunction(func, args, mutex);
-}
-
-void PThreadPool::executeFunction(void (*func)(void*), void* args) {
-    executeFunction(func, args, nullptr);
-}
-
 PThreadPool::~PThreadPool() {
     for (int i = 0; i < numWorkerThreads; ++i) {
         delete workers[i];
@@ -110,4 +69,5 @@ PThreadPool::~PThreadPool() {
 
     sem_close(poolSemaphore);
 }
+
 

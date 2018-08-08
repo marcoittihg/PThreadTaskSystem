@@ -31,9 +31,14 @@ private:
         void* funcArgs;
 
         /**
-         * Locked during the execution of the function
+         * Called after the execution of the task
          */
-        pthread_mutex_t* mutex;
+        void (*callback)(void *);
+
+        /**
+         * Args for the execution of the callback
+         */
+        void* callbackArgs;
 
         /**
          * Semaphore that notify when a new function to be executed is ready
@@ -61,9 +66,18 @@ private:
 
         virtual ~WorkerPThread();
 
-        void executeFunction(void (*func)(void*),void* args);
+        inline void executeFunction(void (*func)(void*),void* args) {
+            executeFunction(func, args, nullptr, nullptr);
+        }
 
-        void executeFunction(void (*func)(void*),void* args,pthread_mutex_t* mutex);
+        inline void executeFunction(void (*func)(void*),void* args,void (*callback)(void*),void* callbackArgs){
+            this->func = func;
+            this->funcArgs = args;
+            this->callback = callback;
+            this->callbackArgs = callbackArgs;
+
+            sem_post(newFunctionSemaphore);
+        }
     };
 
     /**
@@ -94,9 +108,24 @@ private:
     /**
      * Synchronized access to the queue
      */
-    inline WorkerPThread* popReadyQueue();
+    inline WorkerPThread* popReadyQueue(){
+        pthread_mutex_lock(&queueMutex);
 
-    inline void pushReadyQueue(WorkerPThread* worker);
+        WorkerPThread* worker = readyWorkers.front();
+        readyWorkers.pop();
+
+        pthread_mutex_unlock(&queueMutex);
+
+        return worker;
+    }
+
+    inline void pushReadyQueue(WorkerPThread* worker){
+        pthread_mutex_lock(&queueMutex);
+
+        readyWorkers.push(worker);
+
+        pthread_mutex_unlock(&queueMutex);
+    }
 
 public:
 
@@ -111,10 +140,21 @@ public:
      * the current thread until a worker is freed
      * @param func The new function to be executed
      */
-    void executeFunction(void (*func)(void*), void* args);
+    inline void executeFunction(void (*func)(void*), void* args){
+        executeFunction(func, args, nullptr, nullptr);
+    }
 
+    inline void executeFunction(void (*func)(void*), void* args,void (*callback)(void*),void* callbackArgs) {
+        sem_wait(poolSemaphore);
 
-    void executeFunction(void (*func)(void*), void* args, pthread_mutex_t* mutex);
+        WorkerPThread* worker = popReadyQueue();
+
+        worker->executeFunction(func, args, callback, callbackArgs);
+    }
+
+    inline unsigned int getNumWorkerThreads() {
+        return numWorkerThreads;
+    }
 };
 
 
