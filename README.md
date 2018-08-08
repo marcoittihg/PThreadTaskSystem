@@ -4,9 +4,9 @@
 ## PThreadPool
 Manage a pool of pthread workers to handle incoming execution requests.
 
-[DOC](../DOC/PThreadPoolDOC.md)
+[DOC](../blob/master/DOC/PThreadPoolDOC.md)
 
 ## TaskSystem
 Built on top of the PThreadPool allow to create custom tasks and define dependencies among them.
 
-[DOC](../DOC/TaskSystemDOC.md)
+[DOC](../blob/master/DOC/TaskSystemDOC.md)
