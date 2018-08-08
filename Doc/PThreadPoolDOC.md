@@ -1,6 +1,6 @@
 # PThreadPool
 
-Create a pool of *PThreadWorkers* and allow the thread safe execution of the *executeFunction* calls.  
+Create a pool of **PThreadWorkers** and allow the thread safe execution of the **executeFunction** calls.  
 
 ## Interface
 
@@ -16,8 +16,8 @@ PThreadPool(unsigned int numWorkerThreads);
 ```
   
 ### Execution calls
-Wait for a free worker thread and execute tht passed function func with args as arguments.
-At the end of the execution call the passed callback with its arguments.
+Wait for a free worker thread and execute tht passed function func with args as arguments;
+at the end of the execution the Worker will call the passed callback with its arguments.
 ```cpp
 void executeFunction(void (*func)(void*), void* args, void (*callback)(void*), void* callbackArgs)
 ```
@@ -29,7 +29,7 @@ void executeFunction(void (*func)(void*), void* args)
 ```
   
 ### Utility
-Return the number of created Workers.
+Return the number of handled Workers.
 ```cpp
 unsigned int getNumWorkerThreads()
 ```
