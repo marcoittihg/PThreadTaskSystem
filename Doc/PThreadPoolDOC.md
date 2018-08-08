@@ -46,7 +46,7 @@ void HelloWorld(void* args){
 }
 
 PThreadPool pool;
-pool.executeFunction(func, nullptr);
+pool.executeFunction(HelloWorld, nullptr);
 
 ```
   
