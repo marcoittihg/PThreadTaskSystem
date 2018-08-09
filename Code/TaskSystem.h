@@ -77,18 +77,6 @@ namespace TaskSystem {
             }
         };
 
-        struct DependencyTypeNotAllowedException : std::exception{
-        public:
-            DependencyTypeNotAllowedException() {}
-            DependencyTypeNotAllowedException(const DependencyTypeNotAllowedException&) noexcept {}
-            DependencyTypeNotAllowedException& operator= (const DependencyTypeNotAllowedException& ) noexcept{return *this;}
-
-
-            const char* what() const noexcept {
-                return const_cast<char *>("Dependency type is not allowed");
-            }
-        };
-
         struct TaskElementParentingException : std::exception{
         public:
             TaskElementParentingException() {}
@@ -132,11 +120,6 @@ namespace TaskSystem {
              */
             unsigned int satisfiedDependencies;
 
-            /**
-             * True if the task is already into the execution queue
-             */
-            bool inQueue;
-
             /** Function to be executed
              */
             void (*execute)(void*);
@@ -152,10 +135,6 @@ namespace TaskSystem {
 
             void setExecute(void (*execute)(void*));
 
-            typedef void(*FuncPointer)(void*);
-
-            FuncPointer getExecute();
-
             /**
              * Right call to start the execution of the task
              */
@@ -165,17 +144,6 @@ namespace TaskSystem {
              * @return True if the task is a dummy task
              */
             bool isDummy();
-
-            /**
-             * @return True if the task is already into a execution queue
-             */
-            bool isInQueue();
-
-            /**
-             * Set the value of in queue
-             * @param value
-             */
-            void setInQueue(bool value);
 
             /**
              * Free one dependency of the task
@@ -259,7 +227,7 @@ namespace TaskSystem {
              */
             void addTask(Task* task) noexcept (false);
 
-            void addSubGraph(TaskGraph* subGraph);
+            void addSubGraph(TaskGraph* subGraph) noexcept (false);
 
             void addDependencyTo(TaskGraph* taskGraph) noexcept(false) override;
             void addDependencyTo(Task* task) noexcept(false) override;
@@ -277,6 +245,8 @@ namespace TaskSystem {
 
     public:
         TaskSystem();
+
+        TaskSystem(unsigned int numWorkers);
 
         virtual ~TaskSystem();
 

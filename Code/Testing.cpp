@@ -549,7 +549,7 @@ BOOST_AUTO_TEST_CASE(test_case_two_serial_two_graphs_reverse){
 
 /**
  * Test that when two tasks are under two graphs they can not be linked with a dependency
- * a DependencyTypeNotAllowedException is thrown
+ * a TaskElementParentingException is thrown
  */
 BOOST_AUTO_TEST_CASE(test_case_two_tasks_in_two_graphs) {
 
@@ -566,7 +566,7 @@ BOOST_AUTO_TEST_CASE(test_case_two_tasks_in_two_graphs) {
         task1.addDependencyTo(&task2);
 
     }
-    catch (TaskSystem::TaskSystem::DependencyTypeNotAllowedException &exe) {
+    catch (TaskSystem::TaskSystem::TaskElementParentingException &exe) {
         return;
     }
     catch (std::exception &exe) {

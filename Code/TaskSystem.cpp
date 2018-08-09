@@ -24,6 +24,8 @@ namespace TaskSystem {
 
         dependencyMutex = PTHREAD_MUTEX_INITIALIZER;
 
+        execute = [](void*){};
+
         static unsigned int idIncrement = 0;
 
         taskID = idIncrement++;
@@ -80,7 +82,7 @@ namespace TaskSystem {
     void TaskSystem::Task::addDependencyTo(TaskSystem::Task *task) noexcept(false) {
         //check that the two tasks are under the same TaskGraph
         if (getParentGraph() != task->getParentGraph() || getParentGraph() == nullptr)
-            throw DependencyTypeNotAllowedException();
+            throw TaskElementParentingException();
 
         Task::removeDependencyBetween(this, task);
 
@@ -101,7 +103,7 @@ namespace TaskSystem {
 
     void TaskSystem::Task::addDependencyTo(TaskSystem::TaskGraph *taskGraph) noexcept(false) {
         if (taskGraph->getParentGraph() != getParentGraph() || getParentGraph() == nullptr)
-            throw DependencyTypeNotAllowedException();
+            throw TaskElementParentingException();
 
         TaskGraph *oldParent = taskGraph->getParentGraph();
 
@@ -160,24 +162,12 @@ namespace TaskSystem {
         return toTask;
     }
 
-    bool TaskSystem::Task::isInQueue() {
-        return inQueue;
-    }
-
-    void TaskSystem::Task::setInQueue(bool value) {
-        inQueue = value;
-    }
-
     std::vector<TaskSystem::TaskDependency *> TaskSystem::Task::getFromTask() {
         return fromTask;
     }
 
     void TaskSystem::Task::setExecute(void (*execute)(void *)) {
         Task::execute = execute;
-    }
-
-    TaskSystem::Task::FuncPointer TaskSystem::Task::getExecute() {
-        return execute;
     }
 
     TaskSystem::Task::Task(void (*execute)(void *)) : Task(false) {
@@ -237,8 +227,9 @@ namespace TaskSystem {
 
     void
     TaskSystem::TaskGraph::addDependencyTo(TaskSystem::TaskGraph *taskGraph) noexcept(false) {
-        if (getParentGraph() != taskGraph->getParentGraph() || getParentGraph() == nullptr)
-            throw DependencyTypeNotAllowedException();
+        if (getParentGraph() != taskGraph->getParentGraph() || getParentGraph() == nullptr
+                || start.getTaskID() == taskGraph->start.getTaskID())
+            throw TaskElementParentingException();
 
         bool foundSg, foundGe;
 
@@ -261,7 +252,7 @@ namespace TaskSystem {
 
     void TaskSystem::TaskGraph::addDependencyTo(TaskSystem::Task *task) noexcept(false) {
         if (getParentGraph() != task->getParentGraph() && getParentGraph() != nullptr)
-            throw DependencyTypeNotAllowedException();
+            throw TaskElementParentingException();
 
         bool foundSt, foundGe;
 
@@ -337,14 +328,14 @@ namespace TaskSystem {
                 sem_unlink("QueueSem");
             }
 
-            void safePut(Task *task) {
+            inline void safePut(Task *task) {
                 pthread_mutex_lock(&mutex);
                 queue.push(task);
                 sem_post(sem);
                 pthread_mutex_unlock(&mutex);
             }
 
-            Task *safePop() {
+            inline Task *safePop() {
                 sem_wait(sem);
                 pthread_mutex_lock(&mutex);
                 Task *task = queue.front();
@@ -398,6 +389,10 @@ namespace TaskSystem {
 
     TaskSystem::TaskSystem() {
         pThreadPool = new PThreadPool();
+    }
+
+    TaskSystem::TaskSystem(unsigned int numWorkers) {
+        pThreadPool = new PThreadPool(numWorkers);
     }
 
     TaskSystem::~TaskSystem() {

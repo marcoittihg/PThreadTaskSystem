@@ -144,7 +144,7 @@ public:
         executeFunction(func, args, nullptr, nullptr);
     }
 
-    inline void executeFunction(void (*func)(void*), void* args,void (*callback)(void*),void* callbackArgs) {
+    inline void executeFunction(void (*func)(void*), void* args, void (*callback)(void*), void* callbackArgs) {
         sem_wait(poolSemaphore);
 
         WorkerPThread* worker = popReadyQueue();
