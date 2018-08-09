@@ -20,7 +20,6 @@ namespace TaskSystem {
 
     TaskSystem::Task::Task(bool dummy) : dummy(dummy) {
         parentGraph = nullptr;
-        inQueue = false;
 
         dependencyMutex = PTHREAD_MUTEX_INITIALIZER;
 
