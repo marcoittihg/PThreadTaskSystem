@@ -178,7 +178,7 @@ public:
 
 };
 
-unsigned int arraySize = 5;
+unsigned int arraySize = 1000000;
 
 float* a = new float[arraySize];
 float* b = new float[arraySize];
