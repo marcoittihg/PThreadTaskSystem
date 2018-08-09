@@ -1,11 +1,11 @@
 # PThreadPool
 
-Create a pool of **PThreadWorkers** and allow the thread safe execution of the **executeFunction** calls.  
+Create a pool of **PThreadWorkers** and allow the parallel and thread safe execution of the **executeFunction** calls.  
 
 ## Interface
 
 ### Constructors  
-Create a new *PThreadPool* with a number of workers equal to the maximum number threads supported by the system.
+Create a new *PThreadPool* with a number of workers equal to the maximum number of threads supported by the system.
 ```cpp
 PThreadPool();
 ```
