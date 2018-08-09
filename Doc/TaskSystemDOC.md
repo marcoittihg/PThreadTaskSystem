@@ -50,6 +50,7 @@ Task(bool dummy);
 
 
 Create a Task that will execute the function passed as argument.
+The argument passed to the executed function a the pointer to its task.
 ```cpp
 Task(void (*execute)(void*));
 ```
@@ -78,6 +79,7 @@ unsigned int getTaskID();
 ```
 
 Set the function passed as argument as the function that is intended to be executed for this Task.
+The argument passed to the executed function is a pointer to its task.
 ```cpp
 void setExecute(void (*execute)(void*));
 ```
@@ -131,4 +133,89 @@ Thwrow a *CyclicGraphException* when the just added dependency lead to a cyclic 
 If a *CyclicGraphException* is thrown the parent TaskGraph is restored to the situation before the call of the method.
 ```cpp
 void addDependencyTo(TaskGraph* taskGraph);
+```
+
+### Utilities:
+
+Return the start and end indexes of each worker to equally split the total ammount of work.
+```cpp
+inline void splitEqually(unsigned long totWork, unsigned int numWorkers, std::vector<std::pair<unsigned long, unsigned long>>* out){
+```
+
+## Example 
+
+### Hello World!
+```cpp
+TaskSystem::TaskSystem::Task HelloWorld([](void*){
+    std::cout << "HelloWorld!" << std::endl;
+});
+
+TaskSystem::TaskSystem taskSystem;
+TaskSystem::TaskSystem::TaskGraph taskGraph;
+
+taskGraph.addTask(&HelloWorld);
+taskSystem.executeTaskGraph(taskGraph);
+
+```
+
+
+### Sum of two array of floats
+```cpp
+TaskSystem::TaskSystem taskSystem;
+TaskSystem::TaskSystem::TaskGraph taskGraph;
+
+class TaskSumFloats : public TaskSystem::TaskSystem::Task{
+public:
+    unsigned long startIndex;
+    unsigned long endIndex;
+
+    float* a;
+    float* b;
+    float* c;
+
+    TaskSumFloats(unsigned long startIndex, unsigned long endIndex, float *a, float *b, float *c) : startIndex(
+            startIndex), endIndex(endIndex), a(a), b(b), c(c) {}
+
+};
+
+unsigned int arraySize = 5;
+
+float* a = new float[arraySize];
+float* b = new float[arraySize];
+float* c = new float[arraySize];
+
+/*
+ .
+ .  Arrays initialization
+ .
+*/
+
+std::vector<std::pair<unsigned long, unsigned long>> indexes;
+
+TaskSystem::splitEqually(arraySize, 4, &indexes);
+
+TaskSumFloats task1(indexes.at(0).first, indexes.at(0).second,a,b,c);
+TaskSumFloats task2(indexes.at(1).first, indexes.at(1).second,a,b,c);
+TaskSumFloats task3(indexes.at(2).first, indexes.at(2).second,a,b,c);
+TaskSumFloats task4(indexes.at(3).first, indexes.at(3).second,a,b,c);
+
+void (*sum)(void*) = [](void* args){
+    TaskSumFloats* context = (TaskSumFloats*) args;
+
+    for (int i = context->startIndex; i <= context->endIndex; ++i) {
+        context->c[i] = context->a[i] + context->b[i];
+    }
+};
+
+task1.setExecute(sum);
+task2.setExecute(sum);
+task3.setExecute(sum);
+task4.setExecute(sum);
+
+taskGraph.addTask(&task1);
+taskGraph.addTask(&task2);
+taskGraph.addTask(&task3);
+taskGraph.addTask(&task4);
+
+taskSystem.executeTaskGraph(taskGraph);
 ```
