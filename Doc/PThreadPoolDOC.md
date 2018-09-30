@@ -1,6 +1,6 @@
 # PThreadPool
 
-Create a pool of **PThreadWorkers** and allow the parallel and thread safe execution of the **executeFunction** calls.  
+Create a pool of **PThreadWorkers** that allow the parallel and thread safe execution of the **executeFunction** calls.  
 
 ## Interface
 
