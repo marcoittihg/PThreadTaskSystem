@@ -19,7 +19,7 @@ TaskSystem(unsigned int numWorkers);
 
 #### Execution
 
-Execute the TaskGraph passed as argument, the method call returns when all the Tasks of the TaskGraph have been executed.
+Execute the TaskGraph passed as argument, the method call return when all the Tasks of the TaskGraph have been executed.
 ```cpp
 void executeTaskGraph(TaskGraph taskGraph);
 ```
@@ -33,7 +33,7 @@ unsigned int getNumWorkerThreads();
 
 ### Task
 A *Task* is the base element of a Graph, contain a function to be executed when all its incoming dependencies are satisfied and a dummy flag that is True if the task is not intended to execute code.
-The Task should be a dummy Task if its purpose is just to lower the number of dependencies of the Graph.
+The Task should be a dummy Task if do not execute code and its purpose is just to lower the number of dependencies of the Graph.
 
 #### Constructors:
 
@@ -50,7 +50,7 @@ Task(bool dummy);
 
 
 Create a Task that will execute the function passed as argument.
-The argument passed to the executed function a the pointer to its task.
+The argument passed to the executed function is the pointer to the task object.
 ```cpp
 Task(void (*execute)(void*));
 ```
@@ -59,27 +59,27 @@ Task(void (*execute)(void*));
 
 Add a dependency between the Task and the Task passed as argument.
 Can throw a *TaskElementParentingException* the two Tasks are not under the same Graph and a *CyclicGraphException* when the just added dependency lead to a cyclic Graph.
-If a *CyclicGraphException* is thrown the parent TaskGraph is restored to the situation before the call of the method.
+If a *CyclicGraphException* is thrown the parent TaskGraph is restored to the situation before the method call.
 ```cpp
 void addDependencyTo(Task* task);
 ```
 
 Add a dependency between the Task and the Task graph passed as argument.
 Can throw a *TaskElementParentingException* when the parent of the Task and the parent of the TaskGraph are not the same and a *CyclicGraphException* when the just added dependency lead to a cyclic Graph.
-If a *CyclicGraphException* is thrown the TaskGraph is restored to the situation before the call of the method.
+If a *CyclicGraphException* is thrown the TaskGraph is restored to the situation before the method call.
 ```cpp
 void addDependencyTo(TaskGraph* taskGraph);
 ```
 
 #### Others:
 
-Return an *unsigned int* that is the unique identifier of the Task.
+Return an *unsigned int* that is a unique identifier of the Task.
 ```cpp
 unsigned int getTaskID();
 ```
 
 Set the function passed as argument as the function that is intended to be executed for this Task.
-The argument passed to the executed function is a pointer to its task.
+The argument passed to the executed function is a pointer to the task object.
 ```cpp
 void setExecute(void (*execute)(void*));
 ```
@@ -122,7 +122,7 @@ void addSubGraph(TaskGraph* subGraph);
 
 Add a dependency between the TaskGraph and the Task passed as argument.
 Can throw a *TaskElementParentingException* when the parent of the Task and the parent of the TaskGraph are not the same and a *CyclicGraphException* when the just added dependency lead to a cyclic Graph.
-If a *CyclicGraphException* is thrown the TaskGraph is restored to the situation before the call of the method.
+If a *CyclicGraphException* is thrown the TaskGraph is restored to the situation before the method call.
 ```cpp
 void addDependencyTo(Task* task);
 ```
@@ -130,7 +130,7 @@ void addDependencyTo(Task* task);
 Add a dependency between the two TaskGraphs.
 Can throw a *TaskElementParentingException* when the parent of the two Graph is not the same, when the two Graphs have no parent and when the two TaskGraphs are the same Graph.
 Thwrow a *CyclicGraphException* when the just added dependency lead to a cyclic Graph.
-If a *CyclicGraphException* is thrown the parent TaskGraph is restored to the situation before the call of the method.
+If a *CyclicGraphException* is thrown the parent TaskGraph is restored to the situation before the method call.
 ```cpp
 void addDependencyTo(TaskGraph* taskGraph);
 ```
