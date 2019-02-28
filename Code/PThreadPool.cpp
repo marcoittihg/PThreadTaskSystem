@@ -27,14 +27,15 @@ void *PThreadPool::WorkerPThread::pthreadWorkerLoop(void* args) {
 }
 
 PThreadPool::WorkerPThread::WorkerPThread(PThreadPool *ownerPool) : ownerPool(ownerPool) {
-    static pthread_mutex_t idMutex = PTHREAD_MUTEX_INITIALIZER;
-    static int idCont = 0;
+    static pthread_mutex_t idMutex1 = PTHREAD_MUTEX_INITIALIZER;
+    static int idCont1 = 0;
 
-    pthread_mutex_lock(&idMutex);
-    semName = "newFunctionSemaphore"+std::to_string(idCont++);
-    pthread_mutex_unlock(&idMutex);
+    pthread_mutex_lock(&idMutex1);
+    semName = "newFunctionSemaphore" + std::to_string(idCont1++);
+    pthread_mutex_unlock(&idMutex1);
 
     newFunctionSemaphore = sem_open(semName.c_str(), O_CREAT, 0644, 0);
+    sem_unlink(semName.c_str());
 
     pthread_create(&workerPthread, NULL, pthreadWorkerLoop, this);
 }
@@ -43,21 +44,21 @@ PThreadPool::WorkerPThread::~WorkerPThread(){
     pthread_cancel(workerPthread);
 
     sem_close(newFunctionSemaphore);
-    sem_unlink(semName.c_str());
 }
 
 
 PThreadPool::PThreadPool() : PThreadPool(std::thread::hardware_concurrency()){}
 
 PThreadPool::PThreadPool( unsigned int numWorkerThreads ) : numWorkerThreads(numWorkerThreads) {
-    static pthread_mutex_t idMutex = PTHREAD_MUTEX_INITIALIZER;
-    static int idCont = 0;
+    static pthread_mutex_t idMutex2 = PTHREAD_MUTEX_INITIALIZER;
+    static int idCont2 = 0;
 
-    pthread_mutex_lock(&idMutex);
-    semName = "poolSemaphore"+std::to_string(idCont++);
-    pthread_mutex_unlock(&idMutex);
+    pthread_mutex_lock(&idMutex2);
+    semName = "poolSemaphore" + std::to_string(idCont2++);
+    pthread_mutex_unlock(&idMutex2);
 
     poolSemaphore = sem_open(semName.c_str(), O_CREAT , 0644, numWorkerThreads);
+    sem_unlink(semName.c_str());
 
     queueMutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -85,7 +86,6 @@ PThreadPool::~PThreadPool() {
 
 
     sem_close(poolSemaphore);
-    sem_unlink(semName.c_str());
 }
 
 
