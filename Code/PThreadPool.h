@@ -5,10 +5,10 @@
 #ifndef CODE_PTHREADPOOL_H
 #define CODE_PTHREADPOOL_H
 
-#include <pthread.h>
 #include <queue>
-#include <semaphore.h>
 #include <thread>
+#include <pthread.h>
+#include <semaphore.h>
 
 /**
  * Pool of PThread workers
@@ -44,6 +44,10 @@ private:
          * Semaphore that notify when a new function to be executed is ready
          */
         sem_t* newFunctionSemaphore;
+
+        /** Name of the semaphore
+         */
+        std::string semName;
 
         /**
          * Pool owner of the worker
@@ -104,6 +108,11 @@ private:
      * Semaphore that manage the execution of new functions through the executeFunction method
      */
     sem_t* poolSemaphore;
+
+    /**
+     * Name of the semaphore
+     */
+    std::string semName;
 
     /**
      * Synchronized access to the queue

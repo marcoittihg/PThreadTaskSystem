@@ -221,7 +221,6 @@ namespace TaskSystem {
     }
 
     TaskSystem::TaskGraph::~TaskGraph() {
-
     }
 
     void
@@ -309,22 +308,38 @@ namespace TaskSystem {
                                                            TaskSystem::Task *toTask) : fromTask(
             fromTask), toTask(toTask) {}
 
-    void TaskSystem::executeTaskGraph(TaskSystem::TaskGraph taskGraph) {
-        Task *start = taskGraph.getStart();
-        Task *end = taskGraph.getEnd();
+    TaskSystem::TaskDependency::~TaskDependency() {
+    }
 
-        taskGraph.resetDependencies();
+    void TaskSystem::executeTaskGraph(TaskSystem::TaskGraph* taskGraph) {
+        Task *start = taskGraph->getStart();
+        Task *end = taskGraph->getEnd();
+
+        taskGraph->resetDependencies();
+
+        static pthread_mutex_t idMutex = PTHREAD_MUTEX_INITIALIZER;
+        static int idCont = 0;
 
         class ThreadSafeQueue {
             std::queue<Task *> queue;
 
             pthread_mutex_t mutex;
             sem_t *sem;
+            std::string semName;
         public:
             ThreadSafeQueue() {
                 mutex = PTHREAD_MUTEX_INITIALIZER;
-                sem = sem_open("QueueSem", O_CREAT, 0644, 0);
-                sem_unlink("QueueSem");
+
+                pthread_mutex_lock(&idMutex);
+                semName = "QueueSem"+std::to_string(idCont++);
+                pthread_mutex_unlock(&idMutex);
+
+                sem = sem_open(semName.c_str(), O_CREAT, 0644, 0);
+            }
+
+            virtual ~ThreadSafeQueue() {
+                sem_unlink(semName.c_str());
+                sem_close(sem);
             }
 
             inline void safePut(Task *task) {
@@ -365,7 +380,8 @@ namespace TaskSystem {
             for (std::vector<TaskDependency *>::iterator it = dependencyList.begin();
                  it != dependencyList.end(); it++) {
 
-                Task *toTask = (*it)->toTask;
+                TaskDependency* td = (*it);
+                Task *toTask = td->toTask;
 
                 if (toTask->freeDependency()) {
                     queue->safePut(toTask);
@@ -373,11 +389,16 @@ namespace TaskSystem {
             }
 
             delete cbArgs;
+            cbArgs = nullptr;
         };
 
         while (true) {
             Task *task = taskQueue.safePop();
 
+            if(task == nullptr) {
+                std::this_thread::sleep_for(std::chrono::nanoseconds(1000));
+                continue;
+            }
 
             if (task->getTaskID() == end->getTaskID())
                 break;
@@ -396,6 +417,7 @@ namespace TaskSystem {
 
     TaskSystem::~TaskSystem() {
         delete pThreadPool;
+        pThreadPool = nullptr;
     }
 
     unsigned int TaskSystem::getNumWorkerThreads() {

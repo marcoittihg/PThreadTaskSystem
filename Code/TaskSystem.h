@@ -32,6 +32,8 @@ namespace TaskSystem {
             Task* toTask;
 
             TaskDependency(Task *fromTask, Task *toTask);
+
+            virtual ~TaskDependency();
         };
 
         /** Base class of all the elements of a TaskGraph
@@ -191,6 +193,8 @@ namespace TaskSystem {
             void addDependencyTo(TaskGraph *taskGraph) noexcept(false) override;
             void addDependencyTo(Task *task) noexcept(false) override;
         };
+
+
         /** Graph of tasks to be executed
         */
         class TaskGraph : public TaskElement{
@@ -254,10 +258,11 @@ namespace TaskSystem {
          * Execute the TaskGraph passed as parameter
          * @param taskGraph The graph to be executed
          */
-        void executeTaskGraph(TaskGraph taskGraph);
+        void executeTaskGraph(TaskGraph* taskGraph);
 
         unsigned int getNumWorkerThreads();
     };
+
 }
 
 

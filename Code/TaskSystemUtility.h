@@ -16,30 +16,30 @@ namespace TaskSystem{
      * @param numWorkers Number of available workers
      * @param out std::vector of pairs of indexes that contain the bounds of the i-th worker
      */
-    inline void splitEqually(unsigned long totWork, unsigned int numWorkers, std::vector<std::pair<unsigned long, unsigned long>>* out){
-        unsigned long minWork = totWork / numWorkers;
-        unsigned int residWork = static_cast<unsigned int>(totWork - numWorkers * minWork);
+    inline void splitEqually(long totWork, int numWorkers, std::vector<std::pair<long, long>>* out){
+        long minWork = totWork / numWorkers;
+        int residWork = static_cast<int>(totWork - numWorkers * minWork);
 
-        unsigned long minWorkP1 = minWork + 1;
+        long minWorkP1 = minWork + 1;
 
         if(out->size() != numWorkers)
-            out->resize(numWorkers);
+            out->reserve(numWorkers);
 
-        unsigned long sum = 0;
-        for (unsigned int i = 0; i < residWork; ++i) {
+        long sum = 0;
+        for (int i = 0; i < residWork; ++i) {
             unsigned long oldSum = sum;
             sum += minWorkP1;
 
-            out->at(i) = std::pair<unsigned long, unsigned long>(oldSum, sum - 1);
+            (*out)[i] = std::pair<long, long>(oldSum, sum - 1);
         }
 
 
-        for (unsigned int j = residWork; j < numWorkers; ++j) {
-            unsigned long oldSum = sum;
+        for (int j = residWork; j < numWorkers; ++j) {
+            long oldSum = sum;
 
             sum += minWork;
 
-            out->at(j) = std::pair<unsigned long, unsigned long>(oldSum, sum - 1);
+            (*out)[j] = std::pair<long, long>(oldSum, sum - 1);
         }
     }
 }
